@@ -1,6 +1,8 @@
 # cepstrum-matching-SNED
 
-
+This repository provides the Python scripts used for cepstrum-based analysis of 
+scanning nanobeam electron diffraction (SNED) data.  
+It accompanies the manuscript currently under peer review.
 
 All scripts are placed in the `code/` folder:
 - `1simulatedCBED2cepstrum.py` : Generate simulated cepstrum from diffraction patterns

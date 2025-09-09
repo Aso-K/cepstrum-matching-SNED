@@ -25,260 +25,212 @@ from skimage.transform import rescale
 import matplotlib.patches as patches
 import matplotlib.patheffects as patheffects
 
-
-def scale_bar(pix_size, ax=None, unit='nm$^{-1}$', bar_length=1, px=0.97, py=0.95, 
-              fs=22, c='w'):
-    
-    if ax == None:
+# ----------------------------------
+# Helpers
+# ----------------------------------
+def scale_bar(pix_size, ax=None, unit='nm$^{-1}$', bar_length=1, px=0.97, py=0.95, fs=22, c='w'):
+    """Draw a scale bar of length `bar_length` (in `unit`) onto an axis where
+    1 pixel corresponds to `pix_size` (in `unit`/pixel)."""
+    if ax is None:
         ax = plt.gca()
-    
     _, x_size = ax.get_xlim()
     y_size, _ = ax.get_ylim()
-    hline = patches.Rectangle((x_size*px-bar_length/pix_size, y_size*py), 
-                              bar_length/pix_size, y_size*0.015,
-                              alpha=1, facecolor=c,
-                               path_effects=[patheffects.withStroke(linewidth=3, foreground='k', capstyle="round")]
-                              )
-    hline_ax = ax.add_patch(hline)
-    hline_ax.set_zorder(100)
-    
-    # ax.text(px*x_size, (py-0.005)*y_size, 
-    #             '%i %s'%(bar_length, unit),
-    #             va='bottom', ha='right', c='w', fontsize=fs,
-    #             path_effects=[patheffects.withStroke(linewidth=3, foreground='k', capstyle="round")])
-    return
+    bar_px = bar_length / pix_size
+    hline = patches.Rectangle(
+        (x_size * px - bar_px, y_size * py),
+        bar_px, y_size * 0.015,
+        alpha=1, facecolor=c,
+        path_effects=[patheffects.withStroke(linewidth=3, foreground='k', capstyle="round")]
+    )
+    ax.add_patch(hline).set_zorder(100)
 
-def scale_bar_cepstrum(pix_size2, ax=None, unit='nm', bar_length=0.5, px=0.97, py=0.95, 
-              fs=22, c='w'):
-    
-    if ax == None:
+
+def scale_bar_cepstrum(pix_size2, ax=None, unit='nm', bar_length=0.5, px=0.97, py=0.95, fs=22, c='w'):
+    """Draw a scale bar for the cepstrum image where 1 pixel corresponds to `pix_size2` (in `unit`/pixel)."""
+    if ax is None:
         ax = plt.gca()
-    # pix_size2 = 1/pix_size/264
-    # print(pix_size2)
     _, x_size = ax.get_xlim()
     y_size, _ = ax.get_ylim()
-    hline = patches.Rectangle((x_size*px-bar_length/pix_size2, y_size*py), 
-                              bar_length/pix_size2, y_size*0.015,
-                              alpha=1, facecolor=c,
-                               path_effects=[patheffects.withStroke(linewidth=3, foreground='k', capstyle="round")]
-                              )
-    hline_ax = ax.add_patch(hline)
-    hline_ax.set_zorder(100)
-    
-    # ax.text(px*x_size, (py-0.005)*y_size, 
-    #             '%i %s'%(bar_length, unit),
-    #             va='bottom', ha='right', c='w', fontsize=fs,
-    #             path_effects=[patheffects.withStroke(linewidth=3, foreground='k', capstyle="round")])
-    return
+    bar_px = bar_length / pix_size2
+    hline = patches.Rectangle(
+        (x_size * px - bar_px, y_size * py),
+        bar_px, y_size * 0.015,
+        alpha=1, facecolor=c,
+        path_effects=[patheffects.withStroke(linewidth=3, foreground='k', capstyle="round")]
+    )
+    ax.add_patch(hline).set_zorder(100)
 
 
 def create_rotational_symmetric_hann_window(shape):
+    """Create a rotationally symmetric Hann-like window on a unit disk."""
     if len(shape) != 2:
         raise ValueError("Shape must be 2-dimensional")
-    
     rows, cols = shape
     y = np.linspace(-1, 1, rows)[:, np.newaxis]
     x = np.linspace(-1, 1, cols)[np.newaxis, :]
-    
     distance = np.sqrt(x**2 + y**2)
-    
-    normalized_distance = np.clip(distance, 0, 1)
-    
-    hann_window = 0.5 * (1 - np.cos(np.pi * (1 - normalized_distance)))
-    
-    return hann_window
+    r = np.clip(distance, 0, 1)
+    return 0.5 * (1 - np.cos(np.pi * (1 - r)))
 
+# ----------------------------------
+# Settings
+# ----------------------------------
 cmap = 'cmo.deep_r'
 cmap_cbed = 'cmo.thermal'
-    
+plt.rcParams['image.cmap'] = cmap  # default colormap; individual plots set as needed
+
 folder2 = ''
-
-file2 = 'LiCoO2 O3 (I) 10-110nm.png'
-
+# Choose one pattern file:
 file2 = 'Co3O4 10-110nm.png'
+# file2 = 'LiCoO2 O3 (I) 10-110nm.png'
 # file2 = 'CoO (NaCl) 10-110nm.png'
-
-
 # file2 = 'SrTiO3 [-110].png'
-
 
 savepath = folder2 + file2.split('.png')[0]
 
-
 oversample_size = 512
-crop_hw_cepst = 200 # 180
+crop_hw_cepst = 200
 tol = 10
 
-# oversample_size = 264
-# crop_hw_cepst = 100
-# tol = 3
+# Window size used in the original script (kept as-is)
+hann2D = create_rotational_symmetric_hann_window((264, 264))
 
+# Pixel size (reciprocal-nm per pixel) used for the CBED image scale bar (kept as-is)
+pix_size = 0.07974688 * 2
+# Cepstrum pixel size in nm per pixel (spatial domain of the cepstrum image)
+pix_size_cepst = (1 / pix_size) / oversample_size
 
-hann2D = create_rotational_symmetric_hann_window((264,264))
+bg = 1e-15  # small positive offset to avoid log(0)
 
-pix_size = 0.07974688*2
-pix_size_cepst = 1/(pix_size)/oversample_size
-ind = 0
-# file   = files[ind]
+# ----------------------------------
+# Load & pre-process image
+# ----------------------------------
+img_raw = rgb2gray(imread(folder2 + file2)[:, :, :3])
 
-
-bg = 1e-15
-
-img_raw = rgb2gray(imread(folder2+file2)[:,:,:3])
+# center-crop to square if needed
 if img_raw.shape[1] != img_raw.shape[0]:
-    print(img_raw.shape[1] != img_raw.shape[0])
-    crop_hw_adjust = (img_raw.shape[1] - img_raw.shape[0])//2
-    img_raw = img_raw[:,crop_hw_adjust:-crop_hw_adjust]
-    print(img_raw.shape[1] != img_raw.shape[0])
+    crop_hw_adjust = (img_raw.shape[1] - img_raw.shape[0]) // 2
+    img_raw = img_raw[:, crop_hw_adjust:-crop_hw_adjust]
 
-#%%
-
+# specific orientation tweak (kept for reproducibility)
 if file2 == 'SrTiO3 [1-10].png':
     img_raw = np.flipud(img_raw)
 
-
-# img_raw = rgb2gray(imread(folder+file)[:,:,:3])
-img = rescale(img_raw, 0.5, anti_aliasing=True, )
+# downscale for noise reduction / anti-aliasing (kept)
+img = rescale(img_raw, 0.5, anti_aliasing=True)
 img_ = img.copy() + bg
-img_hw = int(np.round(img.shape[0]/2))
+img_hw = int(np.round(img.shape[0] / 2))
 
-noise = ((np.random.normal(size = img.shape))+3)/200
-noise[noise<0] = 0
-
-
+# ----------------------------------
+# Cepstrum computation
+# ----------------------------------
 img2 = np.zeros((oversample_size, oversample_size)) + bg
-
-# log_img2 = np.log(img2 + bg)
 log_img = np.log(img + bg)
 
-
+# window & mean subtraction
 wmean = np.average(log_img, weights=hann2D)
-img3 = (log_img - wmean)*hann2D
-img2[:264,:264] = img3
+img3 = (log_img - wmean) * hann2D
+img2[:264, :264] = img3  # pad into oversampled canvas
 
+cepstrum = np.abs(np.fft.fftshift(np.fft.fft2(img2)))
 
-cepstrum = ((np.abs(np.fft.fftshift(np.fft.fft2(img2 + bg)))))
-# cepstrum_bg = gaussian_filter(cepstrum_, 50)
-#  = cepstrum_ - cepstrum_bg
-
-plt.figure()
-plt.imshow(cepstrum)
+# contrast helper for CBED display (mask center to expand range stats)
 crop_hh = 12
 img_for_contrast = img_.copy()
-img_for_contrast[img_hw-crop_hh:img_hw+crop_hh,img_hw-crop_hh:img_hw+crop_hh] = 0
-
-
-# vmin_img = np.percentile(img_for_contrast[img_for_contrast!=0], 10)
-# vmax_img = np.percentile(img_for_contrast[img_for_contrast!=0], 0)
+img_for_contrast[img_hw - crop_hh:img_hw + crop_hh, img_hw - crop_hh:img_hw + crop_hh] = 0
 
 crop_hw_img = 90
-
-crop_cepst = (cepstrum[crop_hw_cepst:oversample_size-crop_hw_cepst+1, 
-                              crop_hw_cepst:oversample_size-crop_hw_cepst+1])
+crop_cepst = cepstrum[crop_hw_cepst:oversample_size - crop_hw_cepst + 1,
+                      crop_hw_cepst:oversample_size - crop_hw_cepst + 1]
 crop_cepst_ = crop_cepst.copy()
 
-crop_cepst_size = crop_cepst.shape[0]
-crop_cepst_[crop_cepst_size//2-tol:crop_cepst_size//2+tol, 
-            crop_cepst_size//2-tol:crop_cepst_size//2+tol] = np.nan
-crop_cepst__ = crop_cepst_[~np.isnan(crop_cepst_)]
+# discard central square for percentile estimation
+cc = crop_cepst_.shape[0] // 2
+crop_cepst_[cc - tol:cc + tol, cc - tol:cc + tol] = np.nan
+crop_vals = crop_cepst_[~np.isnan(crop_cepst_)]
+
+# robust display ranges
+vmin_cepst = np.percentile(crop_vals, 80)
+vmax_cepst = np.percentile(crop_vals, 99.5)
+vmin_img = np.percentile(img_for_contrast[img_for_contrast != 0], 1)
+vmax_img = np.percentile(img_for_contrast[img_for_contrast != 0], 99.9)
+
+# ----------------------------------
+# Visualization (kept, with minor cleanups)
+# ----------------------------------
+plt.figure()
+plt.imshow(cepstrum)
+plt.title('Cepstrum (raw)')
+plt.colorbar()
 
 plt.figure()
-plt.imshow(crop_cepst_)
+plt.imshow(crop_cepst)
+plt.title('Cepstrum (crop, raw)')
+plt.colorbar()
 
 plt.figure()
-# plt.hist(crop_cepst_.flatten(), bins=500)
-plt.hist(crop_cepst__, bins=500)
+plt.hist(crop_vals, bins=500)
 plt.yscale('log')
+plt.title('Cepstrum histogram (crop, center removed)')
 
-
-vmin_cepst = np.percentile(crop_cepst__, 80)
-vmax_cepst = np.percentile(crop_cepst__, 99.5)
-
-vmin_img = np.percentile(img_for_contrast[img_for_contrast!=0], 1)
-vmax_img = np.percentile(img_for_contrast[img_for_contrast!=0], 99.9)
-
-
-### show CBED
+# CBED
 plt.figure()
-plt.imshow(img, cmap=cmap_cbed)
+plt.imshow(img, cmap=cmap_cbed, vmin=vmin_img, vmax=vmax_img)
 scale_bar(pix_size, bar_length=5)
 plt.axis('off')
+plt.title('CBED')
 
-
-### show log(CBED)
+# log(CBED)
 plt.figure()
 plt.imshow(log_img, cmap=cmap_cbed)
 scale_bar(pix_size, bar_length=5)
 plt.axis('off')
+plt.title('log(CBED)')
 
-### show hann2D
+# Hann window
 plt.figure()
-plt.imshow(hann2D, 
-           # norm=LogNorm(vmin_img,vmax_img),
-           # vmin=vmin_img,vmax=vmax_img,
-           cmap=cmap_cbed)
-# scale_bar(pix_size, bar_length=5)
+plt.imshow(hann2D, cmap=cmap_cbed)
 plt.axis('off')
 plt.colorbar()
+plt.title('Hann window (rotationally symmetric)')
 
-### show windowed CBED
+# windowed CBED (padded canvas)
 plt.figure()
-plt.imshow((img2), 
-           # norm=LogNorm(vmin_img,vmax_img),
-           # vmin=vmin_img,vmax=vmax_img,
-           cmap=cmap_cbed)
+plt.imshow(img2, cmap=cmap_cbed)
 scale_bar(pix_size, bar_length=5)
 plt.axis('off')
+plt.title('Windowed + padded CBED')
 
-### show padded CBED
+# windowed CBED (just the windowed block)
 plt.figure()
-plt.imshow((img3), 
-           # norm=LogNorm(vmin_img,vmax_img),
-           # vmin=vmin_img,vmax=vmax_img,
-           cmap=cmap_cbed)
+plt.imshow(img3, cmap=cmap_cbed)
 scale_bar(pix_size, bar_length=5)
 plt.axis('off')
+plt.title('Windowed CBED (block)')
 
-
+# cepstrum with display range
 plt.figure()
-plt.imshow(cepstrum, 
-            vmin = vmin_cepst, vmax=vmax_cepst,
-           cmap=cmap)
+plt.imshow(cepstrum, vmin=vmin_cepst, vmax=vmax_cepst, cmap=cmap)
 scale_bar_cepstrum(pix_size_cepst)
 plt.axis('off')
-# plt.colorbar()
+plt.title('Cepstrum')
 
-
+# CBED (contrast-focused crop)
 plt.figure()
-plt.imshow((img_), 
-           # norm=LogNorm(vmin_img,vmax_img),
-           vmin=vmin_img,vmax=vmax_img,
-           cmap=cmap_cbed)
+plt.imshow(img_[crop_hw_img:264 - crop_hw_img, crop_hw_img:264 - crop_hw_img],
+           vmin=vmin_img, vmax=vmax_img, cmap=cmap_cbed)
 scale_bar(pix_size, bar_length=5)
 plt.axis('off')
+plt.title('CBED (center-cropped for contrast)')
 
+# cepstrum (cropped, display range)
 plt.figure()
-plt.imshow((img_[crop_hw_img:264-crop_hw_img, 
-                          crop_hw_img:264-crop_hw_img]), 
-           # norm=LogNorm(vmin_img,vmax_img),
-           vmin=vmin_img,vmax=vmax_img,
-           cmap=cmap_cbed)
-scale_bar(pix_size, bar_length=5)
-plt.axis('off')
-
-plt.figure()
-# plt.scatter(crop_cepst_size//2,crop_cepst_size//2, zorder=1000, marker='x', c='w', s=500, lw=4, alpha=0.8)
-# plt.scatter(crop_cepst_size//2,crop_cepst_size//2, zorder=1200, marker='x', c='w', s=170, lw=3)
-# plt.scatter(52.5,17.5, zorder=1000, marker='^', s=1600, lw=2, facecolor='None', edgecolors='w', alpha=0.8)
-# plt.scatter(72.3,20.7, zorder=1000, marker='o', s=1100, lw=2, facecolor='None', edgecolors='w', alpha=0.8)
-plt.imshow(crop_cepst, 
-            vmin = vmin_cepst, vmax=vmax_cepst,
-           cmap=cmap)
+plt.imshow(crop_cepst, vmin=vmin_cepst, vmax=vmax_cepst, cmap=cmap)
 scale_bar_cepstrum(pix_size_cepst)
 plt.axis('off')
-# plt.colorbar()
+plt.title('Cepstrum (crop)')
 
-print(crop_cepst.shape)
+print("crop_cepst shape:", crop_cepst.shape)
 
-#np.savetxt(folder2 + 'cepstrum_pixsize_nm-per-pixel.txt', [pix_size_cepst])
-# np.save(savepath + '_crop-cepstrum.npy', crop_cepst)
+np.savetxt(folder2 + 'cepstrum_pixsize_nm-per-pixel.txt', [pix_size_cepst])
+np.save(savepath + '_crop-cepstrum.npy', crop_cepst)
